@@ -3,8 +3,8 @@ nss-k8s-images -- Kubernetes v1.34.13 offline cho Ubuntu 24.04 amd64
 
 Noi dung /usr/share/nss-images/
   debs/                containerd.io 2.2.1, kubeadm/kubelet/kubectl 1.34.13,
-                       cri-tools, kubernetes-cni + goi phu tro (conntrack,
-                       socat, ethtool, ebtables, iptables, iproute2, kmod...)
+                       cri-tools, kubernetes-cni + tien ich conntrack, socat,
+                       ethtool (kem thu vien)
   k8s-images.tar       image control-plane + Flannel   (danh sach: IMAGES.txt)
   addons-images.tar    image addon + test              (IMAGES-addons.txt)
   kube-flannel.yml     CNI Flannel, Pod CIDR 10.244.0.0/16
@@ -15,12 +15,13 @@ Noi dung /usr/share/nss-images/
   SHA256SUMS           doi chieu: cd /usr/share/nss-images && sha256sum -c SHA256SUMS
 
 1. Tren MOI node (master + worker)
-   sudo dpkg -i nss-k8s-images_1.34.13-2_amd64.deb
+   sudo dpkg -i nss-k8s-images_1.34.13-3_amd64.deb
    sudo /usr/share/nss-images/setup-node.sh
    -> cai containerd/kubeadm/kubelet/kubectl tu debs/, nap module overlay +
       br_netfilter, sysctl ip_forward, tat swap, containerd SystemdCgroup=true
       va sandbox pause:3.10.1, nap toan bo image vao containerd (ns k8s.io),
-      bat kubelet. Chi cai goi phu tro neu node chua co / dang co ban cu hon.
+      bat kubelet. Goi phu tro/thu vien chi cai khi node chua co -- script
+      khong bao gio nang cap goi he thong dang co tren node.
 
 2. Tren master
    sudo kubeadm init --kubernetes-version v1.34.13 \

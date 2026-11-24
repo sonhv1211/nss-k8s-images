@@ -57,8 +57,12 @@ for f in "$D"/debs/*.deb; do
   p=$(dpkg-deb -f "$f" Package)
   v=$(dpkg-deb -f "$f" Version)
   cur=$(installed_version "$p")
-  # Bo qua goi da co ban bang/moi hon; goi phu tro chi cai khi node thieu hoac cu hon
-  if [ -n "$cur" ] && dpkg --compare-versions "$cur" ge "$v"; then continue; fi
+  case " $CORE_PKGS " in
+    *" $p "*)   # goi k8s/containerd: cai neu chua co hoac dang co ban cu hon
+      if [ -n "$cur" ] && dpkg --compare-versions "$cur" ge "$v"; then continue; fi ;;
+    *)          # goi phu tro / thu vien: CHI cai khi node chua co, khong nang cap goi he thong
+      [ -z "$cur" ] || continue ;;
+  esac
   debs+=("$f")
 done
 if [ ${#debs[@]} -gt 0 ]; then

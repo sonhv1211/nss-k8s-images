@@ -3,7 +3,7 @@
 set -euo pipefail
 
 K8S_VERSION=1.34.13
-PKG_REV=${PKG_REV:-2}
+PKG_REV=${PKG_REV:-3}
 PKG_VERSION=$K8S_VERSION-$PKG_REV
 MAINTAINER=${MAINTAINER:-Son <sonhv1211@users.noreply.github.com>}
 
@@ -12,8 +12,11 @@ K8S_DEB=1.34.13-1.1
 CRI_TOOLS_DEB=1.34.0-1.1
 CNI_DEB=1.7.1-1.1
 CONTAINERD_DEB=2.2.1-1~ubuntu.24.04~noble
-# Goi phu tro: setup-node.sh chi cai neu node chua co (hoac dang co ban cu hon)
-EXTRA_DEBS="conntrack socat ethtool ebtables iptables iproute2 kmod"
+# Goi phu tro (tien ich debug mang, kubeadm 1.34 khong bat buoc). setup-node.sh chi cai
+# khi node CHUA co, khong bao gio nang cap goi he thong. Khong dua vao day goi ma Ubuntu
+# Server da co san (iptables, iproute2, kmod...) hay goi keo theo perl (ebtables -> perl:any
+# -> perl-base (= ...)): xem buoc "Kiem tra dependency" ben duoi.
+EXTRA_DEBS=${EXTRA_DEBS:-conntrack socat ethtool}
 
 FLANNEL_VERSION=v0.28.11
 METRICS_SERVER_VERSION=v0.9.1
@@ -74,6 +77,53 @@ apt-get install -y -qq --download-only --no-install-recommends \
   "cri-tools=$CRI_TOOLS_DEB" "kubernetes-cni=$CNI_DEB" $EXTRA_DEBS >/dev/null
 cp /var/cache/apt/archives/*.deb "$D/debs/"
 ls "$D/debs"
+
+# ---------------------------------------------------------------- kiem tra dependency
+# Node dich la Ubuntu 24.04 co the CHUA update lan nao, va setup-node.sh khong nang cap goi
+# da co tren node. Vi vay moi dependency cua moi goi trong debs/ phai thoa man trong truong
+# hop xau nhat:
+#   - goi thuoc base (co san trong ubuntu:24.04 tron => node chac chan co, co the o ban GA):
+#     ban GA (pocket noble) phai thoa; rang buoc "=" bi tu choi (vd perl -> perl-base (= ..));
+#   - goi nam trong debs/: ban trong debs/ phai thoa, va neu goi co trong archive Ubuntu
+#     (node co the da cai ban GA) thi ban GA cung phai thoa.
+log "Kiem tra dependency cua debs/ voi Ubuntu 24.04 goc (GA)"
+mkdir -p /tmp/base-admin && cp /tmp/status.base /tmp/base-admin/status
+declare -A BUNDLE
+for f in "$D"/debs/*.deb; do BUNDLE[$(dpkg-deb -f "$f" Package)]=$(dpkg-deb -f "$f" Version); done
+in_base() { dpkg-query --admindir=/tmp/base-admin -W -f='${Status}' "$1" 2>/dev/null | grep -q 'ok installed'; }
+provided_by_base() { awk -v RS= -v n="$1" '/Status: install ok installed/ && $0 ~ ("\nProvides:[^\n]*(^|[ ,])" n "([ ,(]|$|\n)") {f=1} END {exit !f}' /tmp/status.base; }
+ga_version() { apt-cache madison "$1" | awk -F'|' '$3 ~ / noble\/(main|restricted|universe|multiverse) / {gsub(/ /,"",$2); print $2; exit}'; }
+vcmp() { local o; case $2 in '>=') o=ge;; '<=') o=le;; '=') o=eq;; '>>') o=gt;; '<<') o=lt;; esac; dpkg --compare-versions "$1" "$o" "$3"; }
+alt_ok() {   # $1 = "ten[:arch] [(op ver)]"
+  local n op v ga
+  n=$(sed -E 's/[[:space:]]*\(.*//; s/:(any|amd64|native)$//' <<<"$1")
+  op=$(sed -nE 's/.*\((>=|<=|>>|<<|=)[[:space:]]*([^)]*)\).*/\1/p' <<<"$1")
+  v=$(sed -nE 's/.*\((>=|<=|>>|<<|=)[[:space:]]*([^)]*)\).*/\2/p' <<<"$1")
+  ga=$(ga_version "$n")
+  if in_base "$n"; then
+    [ -z "$op" ] && return 0
+    [ "$op" != "=" ] && [ -n "$ga" ] && vcmp "$ga" "$op" "$v"; return
+  fi
+  if [ -n "${BUNDLE[$n]:-}" ]; then
+    [ -z "$op" ] && return 0
+    vcmp "${BUNDLE[$n]}" "$op" "$v" || return 1
+    [ -z "$ga" ] || vcmp "$ga" "$op" "$v"; return
+  fi
+  [ -z "$op" ] && provided_by_base "$n"
+}
+bad=0
+for f in "$D"/debs/*.deb; do
+  p=$(dpkg-deb -f "$f" Package)
+  while IFS= read -r grp; do
+    grp=$(sed 's/^[[:space:]]*//; s/[[:space:]]*$//' <<<"$grp"); [ -n "$grp" ] || continue
+    ok=1
+    IFS='|' read -ra alts <<<"$grp"
+    for a in "${alts[@]}"; do alt_ok "$(sed 's/^[[:space:]]*//; s/[[:space:]]*$//' <<<"$a")" && { ok=0; break; }; done
+    [ "$ok" = 0 ] || { echo "  KHONG THOA: $p ${BUNDLE[$p]} -> $grp" >&2; bad=1; }
+  done < <({ dpkg-deb -f "$f" Pre-Depends; dpkg-deb -f "$f" Depends; } | tr ',' '\n')
+done
+[ "$bad" = 0 ] || die "debs/ co dependency khong thoa tren Ubuntu 24.04 goc -- xem danh sach tren"
+log "Dependency OK (${#BUNDLE[@]} goi)"
 
 # ---------------------------------------------------------------- image
 pull_set() {   # $1 = core|addons ; $2 = ten tar
