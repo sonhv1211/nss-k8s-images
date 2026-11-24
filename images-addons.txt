@@ -1,0 +1,9 @@
+# Image addon co ban -> addons-images.tar (manifest tuong ung trong manifests/)
+registry.k8s.io/metrics-server/metrics-server:v0.9.1
+docker.io/rancher/local-path-provisioner:v0.0.37
+quay.io/metallb/controller:v0.16.2
+quay.io/metallb/speaker:v0.16.2
+# Image test / debug mang
+registry.k8s.io/e2e-test-images/agnhost:2.67.0
+docker.io/curlimages/curl:8.23.0
+docker.io/library/nginx:1.30-alpine
