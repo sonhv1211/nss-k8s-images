@@ -1,0 +1,13 @@
+# Image control-plane kubeadm v1.34.13 + Flannel -> k8s-images.tar
+registry.k8s.io/kube-apiserver:v1.34.13
+registry.k8s.io/kube-controller-manager:v1.34.13
+registry.k8s.io/kube-scheduler:v1.34.13
+registry.k8s.io/kube-proxy:v1.34.13
+registry.k8s.io/coredns/coredns:v1.12.1
+registry.k8s.io/etcd:3.6.5-0
+registry.k8s.io/pause:3.10.1
+registry.k8s.io/pause:3.10
+ghcr.io/flannel-io/flannel:v0.28.11
+ghcr.io/flannel-io/flannel-cni-plugin:v1.10.0-flannel1
+nginx:1.27-alpine
+busybox:1.37
